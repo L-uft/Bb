@@ -6,7 +6,7 @@ Live record of S0 to S5 (criteria in PLAN.md §4). Updated as each item complete
 |---|---|---|
 | S0 build pipeline | **PASS** | Run 1 installed with Sideloadly (free Apple ID) on iPhone 13 Pro Max, iOS 26.6.1: self-check all ✓ (MMKV, files, AudioContext 48000 Hz + FFmpeg, memory 103.8 MB, network) |
 | S1 resolver | **PASS** | 3/3 videos → itag 140 audio/mp4 via the `IOS` profile; URLs need no special User-Agent |
-| S2 playback / background / lock screen | code ready, device test pending | S2 screen in the app; your results decide pass/fail |
+| S2 playback / background / lock screen | **round 1 FAILED on device**; round 2 build pending | Run 3: stuck in "buffering", position 0:00, RMS 0; memory +5–12 MB per track change |
 | S3 DSP nodes | pending | |
 | S4 local formats + Hermes APIs | pending | |
 | S5 log screen | pending | |
@@ -50,6 +50,45 @@ What the S2 screen does (`apps/mobile/src/app/s2.tsx`, `src/player/*`):
 - D6: one re-resolve on a playback error, then an error state. The next track is prefetched once the
   current one starts.
 - Event log on screen, with a **Share log** button (text). S5 adds the persistent log file.
+
+### Round 1 on device (run 3, commit `0d46d3e`): FAIL
+
+Your report (iPhone 13 Pro Max, iOS 26.6.1):
+- Resolve on the phone works: IOS itag 140, 179–1130 ms.
+- **Playback never really started.** After every `audio: loaded`, the only event was `buffering`.
+  No `playing`, no position progress, analyser RMS 0.000 ~30 s after the tap.
+- The old "first sound" metric was wrong: it measured `onPlay` (`play()` returning), not audio.
+- **Memory grew** on every change and never dropped: 144 → 156 → 167 → 171 → 177 → 180 → 183 MB.
+
+What the library source says (react-native-audio-api 1.0.1):
+- `buffering` comes from the native file source's `bufferingStateChanged(true)`. `onPlaying` only
+  fires when it later reports `false`, so the native side never produced audio after `start()`.
+- Before playing a remote URL the library runs `HEAD` + `Range: bytes=0-0`. With byte ranges it streams
+  natively through FFmpeg; **otherwise it downloads the whole file into a JS ArrayBuffer**, which would
+  match memory growing by about the file size.
+- The app created the AudioContext at app start, **before** the audio session was set to `playback` and
+  activated. A context whose output never renders also explains every symptom: nothing pulls the
+  source (stuck buffering, position 0, RMS 0) while network data piles up in native memory.
+
+### Round 2 changes (this build)
+
+1. **Context order fix:** session category → activate → *then* create the AudioContext (lazily, on
+   first play). If no audio arrives and the context isn't `running`, rebuild it once.
+2. **Real first-sound metric:** the first analyser RMS > 0.003 after the tap; the first position tick
+   is recorded separately. Status stays `buffering` until there is evidence of audio.
+3. **Logging:** every state change (`play() called`, `buffering`, `buffering → playing`, paused, ended),
+   context state changes, the position + RMS every 5 s, every `<Audio>` / context error.
+4. **Release on track change:** detach from the graph, stop the old native source after its tag
+   unmounts, and call `gc()` if Hermes exposes it.
+5. **"10 rapid track changes"** button: logs memory after each change, then a settled reading and a
+   PLATEAU / STILL GROWING verdict (slope of changes 6–10).
+6. **Fallback 1b built in:** strategy switch Stream / Download → play file (native download to disk,
+   newest 4 kept). Auto-fallback: no audio within 8 s on a stream → retry as file.
+7. **Diagnostics screen (one button):** B1/B2 = 440 Hz oscillator beep (no `<Audio>` tag: does the
+   context render?), then #1–#7 = control MP3 vs YouTube itag 140 / 251 × stream / JS buffer / disk
+   file × direct / graph. For each case it logs which loading path the library took (`HEAD` /
+   `Accept-Ranges` / `Range` status), load time, first tick, max position, RMS, buffering events,
+   errors and memory.
 
 **FFmpeg is required for streaming:** the `Audio` tag streams remote files over HTTP Range requests
 **only when FFmpeg is in the build**; without it, the whole file downloads before playback
