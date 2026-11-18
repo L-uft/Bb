@@ -11,6 +11,10 @@ on:
       - 'apps/mobile/**'
       - 'packages/core/**'
       - '.github/workflows/mobile-ios.yml'
+      # Docs and tests never change the app; don't spend a macOS build on them.
+      - '!apps/mobile/**/*.md'
+      - '!packages/core/**/*.md'
+      - '!packages/core/test/**'
   workflow_dispatch:
 
 permissions:
@@ -48,7 +52,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: apps/mobile/package-lock.json
+          cache-dependency-path: |
+            apps/mobile/package-lock.json
+            packages/core/package-lock.json
 
       - name: Select Xcode (Expo SDK 58 needs 26.4+)
         run: |
@@ -60,6 +66,10 @@ jobs:
           if [ "$(printf '%s\n' 26.4 "$V" | sort -V | head -1)" != "26.4" ]; then
             echo "::error::Xcode $V is older than 26.4"; exit 1
           fi
+
+      - name: Install @bb/core dependencies (bundled into the app via file:)
+        working-directory: packages/core
+        run: npm ci --omit=dev
 
       - name: Install JS dependencies
         run: npm ci
