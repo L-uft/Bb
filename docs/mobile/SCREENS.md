@@ -11,8 +11,8 @@ app/
 ├── _layout.tsx                  Root: providers (theme, PlayerService, query cache), error boundary → Logger
 ├── (tabs)/
 │   ├── _layout.tsx              Bottom tabs + <MiniPlayer/> docked above the tab bar
-│   ├── index.tsx                Home
-│   ├── search.tsx               Search
+│   ├── home.tsx                 Home                                 (v1.1)
+│   ├── index.tsx                Search (first tab in v1)
 │   ├── library/
 │   │   ├── index.tsx            Library hub
 │   │   ├── liked.tsx            Liked songs
@@ -24,7 +24,8 @@ app/
 │       ├── index.tsx            Settings hub
 │       ├── playback.tsx         Quality, (v1.1: crossfade/explicit)
 │       ├── storage.tsx          Storage used, clear cache, clear downloads
-│       ├── account.tsx          Import desktop account (.rfacc)
+│       ├── account.tsx          Import desktop account (.rfacc)        (v1.1)
+│       ├── youtube-config.tsx   Active clients.json: version + source (bundled / remote / cached)
 │       ├── logs.tsx             Log viewer + "Share log file" + diagnostics header
 │       ├── about.tsx            Bb, version, "Based on Riff by rootscripts (MIT)"
 │       ├── licenses.tsx         Open-source licenses
@@ -39,8 +40,8 @@ app/
 └── playlist-picker.tsx          "Add to playlist" sheet (+ create new)
 ```
 
-Tabs: **Home · Search · Library · Settings**. Four tabs fit one-handed use. Queue and lyrics live
-in the player instead of having their own tabs.
+Tabs in v1: **Search · Library · Settings**. **Home** is added as the first tab in v1.1. Queue and
+lyrics live in the player instead of having their own tabs.
 
 ## Player architecture (UI side)
 
@@ -60,7 +61,7 @@ in the player instead of having their own tabs.
 │ [art]  Song title                 ▶ ❙❙   ⏭  │  ← tap: open player; swipe up: open player
 │        Artist          ───────────── (thin progress line)
 └──────────────────────────────────────────────┘
-│  Home     Search     Library     Settings    │
+│     Search        Library        Settings    │   (v1.1: Home tab first)
 ```
 Long-press opens the queue sheet. Hidden when nothing is loaded.
 
@@ -111,12 +112,12 @@ instrumental · offline with cached lyrics.
 └──────────────────────────────────────┘
 ```
 
-### Home (`(tabs)/index.tsx`)
+### Home (`(tabs)/home.tsx`, v1.1)
 
-v1 sections (local data only, works offline): **Continue listening** (last session), **Recently played**,
-**Your playlists**, **Liked songs** (shortcut). v1.1 adds: **Hot picks**, **Trending**, **Top chart (country)**.
+Local sections: **Continue listening** (last session), **Recently played**, **Your playlists**,
+**Liked songs** (shortcut). Online sections: **Hot picks**, **Trending**, **Top chart (country)**.
 
-### Search (`(tabs)/search.tsx`)
+### Search (`(tabs)/index.tsx`, the first tab in v1)
 
 Search field with debounce. Recent searches when empty. Results come from YT Music ("Songs");
 v1.1 adds "Albums" and "Artists" chips and a SoundCloud source chip. Each row: art, title, artist,
@@ -147,8 +148,9 @@ list starting at that row.
 
 ### Settings (`(tabs)/settings/index.tsx`)
 
-Playback & quality · Storage & downloads · Import from desktop (.rfacc) · Logs & diagnostics ·
-About · Open-source licenses · (v2) Integrations: Last.fm, Spotify, RemoteResolver.
+Playback & quality · Storage & downloads · YouTube config (active `clients.json` version + source) ·
+Logs & diagnostics · About · Open-source licenses · (v1.1) Import from desktop (.rfacc) ·
+(v2) Integrations: Last.fm, Spotify, RemoteResolver.
 
 ## Every screen
 

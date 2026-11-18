@@ -19,8 +19,9 @@ Sources: README "Features", the views in `src/renderer/index.html`, the settings
 | YouTube Music search | `/api/search?platform=ytmusic` | **v1** | you | YouTube web search as a fallback when YTM returns nothing (same as the desktop) |
 | YouTube Music playback | `/api/stream-info` | **v1** | you | `StreamResolver` → `OnDeviceResolver`; client profiles in `clients.json`; itag 140 first |
 | Stream URL rules: re-resolve once on 403/expiry, never reuse a URL older than 5 h | `isStreamCacheExpired` | **v1** | you | The desktop uses the `expire=` param or 2 h; Bb uses `min(expire, 5 h)` |
-| Prefetch the next track's URL | `/api/prefetch` | **v1** | proposed | Cuts the gap between tracks; follows the 5 h rule |
-| Audio quality setting (data saver / standard) | `riff_audio_quality` | **v1** | proposed | Picks the itag (139 = 48 kbps / 140 = 128 kbps AAC) |
+| Prefetch the next track's URL | `/api/prefetch` | **v1** | you (approved) | Cuts the gap between tracks; follows the 5 h rule |
+| Audio quality setting (data saver / standard) | `riff_audio_quality` | **v1** | you (approved) | Picks the itag (139 = 48 kbps / 140 = 128 kbps AAC) |
+| Remote `clients.json` override (bundled → remote → cached; version and source shown in Settings) | — (new) | **v1** | you | PLAN.md D15 |
 | Queue: add, play next, reorder, remove | queue view, `audio.js` | **v1** | you | |
 | Shuffle, repeat (off / all / one) | `riff_shuffle`, `riff_repeat` | **v1** | you | |
 | Lock screen / Control Center: title, artist, artwork, progress, controls | media keys (`onMediaCommand`) | **v1** | you | `PlaybackNotificationManager` |
@@ -48,7 +49,7 @@ Sources: README "Features", the views in `src/renderer/index.html`, the settings
 | History | `devsize_history`, view `history` | **v1** | you | |
 | Local files from the Files app, with tags and embedded artwork | `importAudioFiles`, view `local` | **v1** | you | Copied into the sandbox. MP3/M4A/AAC/WAV/FLAC play natively; OGG/Opus need the audio-api FFmpeg option (tested in the spike). |
 | Offline downloads + offline library view, delete, storage used | `/api/offline-*`, `/api/download` | **v1** | you | Downloads the m4a as is. No format conversion (no ffmpeg). |
-| Import a desktop account (`.rfacc`) | `accountImport` | **v1** | brief (Phase 3 step 2) | Imports playlists, liked songs, history, EQ presets and player prefs. See IPC_MAP.md. |
+| Import a desktop account (`.rfacc`) | `accountImport` | **v1.1** | you (moved from v1) | Imports playlists, liked songs, history, EQ presets and player prefs. Key mapping is in IPC_MAP.md. |
 | Saved albums, followed artists | `riff_saved_albums`, `riff_favorite_artists`, view `albums` | **v1.1** | proposed | Comes with the album and artist pages |
 | Pinned playlists, custom sort orders | `riff_pinned_playlists`, `riff_sb_lib_sort`, `riff_local_sort` | **v1.1** | proposed | |
 | Export account / playlists as JSON | `accountExport`, `savePlaylistsJson` | **v2** | proposed | Share sheet |
@@ -59,7 +60,7 @@ Sources: README "Features", the views in `src/renderer/index.html`, the settings
 
 | Feature | Desktop source | Label | By | Notes |
 |---|---|---|---|---|
-| Home, local sections: recently played, liked, your playlists, resume last session | view `discover`, `riff_last_playback_state` | **v1** | proposed | Needs no network, so v1 has a useful Home screen |
+| Home, local sections: recently played, liked, your playlists, resume last session | view `discover`, `riff_last_playback_state` | **v1.1** | you (moved from v1) | v1 has no Home tab; Library → Downloads covers offline listening |
 | Home, online sections: hot picks, trending, country chart | `/api/hot`, `/api/trending`, `/api/top-chart` | **v1.1** | proposed | YTM + Deezer only |
 | Album page | view `album`, `/api/album` | **v1.1** | proposed | |
 | Artist page (bio, top tracks, albums) | view `artist`, `/api/artist` | **v1.1** | proposed | No hard-coded Last.fm key |
@@ -72,8 +73,8 @@ Sources: README "Features", the views in `src/renderer/index.html`, the settings
 | Feature | Desktop source | Label | By | Notes |
 |---|---|---|---|---|
 | Line-synced lyrics from lrclib, auto-scroll | `/api/lyrics` (lrclib path), `lyrics.js` | **v1** | you | Includes the desktop's match heuristics (title cleanup, strict match, instrumental detection) |
-| Tap a line to seek | `lyrics.js` | **v1** | proposed | Almost free once lines are timed |
-| Right-to-left display for Arabic/Hebrew lyric lines | `lyrics-rtl.js` | **v1** | proposed | This is song **content**, not UI, so it fits "English UI only". Per-line direction detection is about 10 lines of code. |
+| Tap a line to seek | `lyrics.js` | **v1** | you (approved) | Almost free once lines are timed |
+| Right-to-left display for Arabic/Hebrew lyric lines | `lyrics-rtl.js` | **v1** | you (approved) | Detected per line; this is song **content**, so the rest of the UI stays English LTR |
 | Manual timing offset | `riff_lyrics_speed` / offset controls | **v1.1** | proposed | |
 | Syllable / word highlighting | `/api/lyrics-words` (NetEase yrc), `parseEnhancedLrcWords` | **v2** | you ("other lyrics sources") | lrclib is line-level only, so syllable timing needs NetEase |
 | Other sources: Musixmatch, NetEase, Kugou, Genius | `/api/lyrics?source=` | **v2** | you | |
@@ -158,7 +159,7 @@ of speed.
 
 | Desktop view (`index.html`) | Bb screen | Label |
 |---|---|---|
-| `view-discover` | Home tab | v1 (local sections), v1.1 (online sections) |
+| `view-discover` | Home tab | v1.1 (local + online sections) |
 | `view-favorites` | Library → Liked songs | v1 |
 | `view-history` | Library → History | v1 |
 | `view-local` | Library → Local files | v1 |
@@ -177,7 +178,6 @@ of speed.
 YT Music search and playback · queue (reorder, shuffle, repeat) · playlists, liked songs, history ·
 lrclib synced lyrics (tap to seek, RTL lines) · 10-band EQ + presets (incl. bass boost) · local files
 from Files · offline downloads · lock screen + AirPods + background + call interruptions ·
-`.rfacc` import · dark theme + dynamic accent · local-only Home · prefetch + quality setting ·
+dark theme + dynamic accent · prefetch + quality setting · remote `clients.json` override ·
 log screen · About + licenses · haptics / VoiceOver / loading-empty-error states.
-
-Items marked **proposed** inside v1: prefetch, quality setting, local-only Home, tap-to-seek and RTL lyric lines.
+Tabs in v1: **Search · Library · Settings** (Home arrives in v1.1).

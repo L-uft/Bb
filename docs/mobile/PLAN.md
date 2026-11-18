@@ -20,7 +20,13 @@ Companion docs: [API_MAP.md](API_MAP.md) · [IPC_MAP.md](IPC_MAP.md) · [FEATURE
 | D11 | Scope: v1 / v1.1 / v2 as listed in FEATURES.md. The spike skips SoundCloud. | you |
 | D12 | Bb stores data under its own MMKV keys (`bb.*`). Desktop data comes in only through `.rfacc` import with a key mapper, so a rename migration is never needed. | proposed |
 | D13 | No root npm workspace (that would change the desktop's `package.json`). `apps/mobile` depends on `packages/core` via `"@bb/core": "file:../../packages/core"` plus Metro `watchFolders`. | proposed |
-| D14 | Never reuse upstream's hard-coded third-party credentials (Last.fm key/secret, SoundCloud fallback client_id, Google OAuth client). The one exception is the `.rfacc` passphrase: it is a file-format constant, and we need it to read your desktop exports. | brief + audit |
+| D14 | Never reuse upstream's hard-coded third-party credentials (Last.fm key/secret, SoundCloud fallback client_id, Google OAuth client), and never copy them into anything ported to `packages/core`. The one exception is the `.rfacc` passphrase: it is a file-format constant, and we need it to read your desktop exports. | brief + audit + you |
+| D15 | **Remote `clients.json` override in v1.** A copy ships inside the app; the remote file is only an override, fetched from `raw.githubusercontent.com/L-uft/Bb/mobile/packages/core/src/youtube/clients.json` at most once every 6 h and also right after a stream-resolve failure. It is validated with a strict zod schema (no fields outside the schema, data only, never evaluated). Fallback order: valid remote → last good cached copy → bundled. Every switch is logged. Settings shows the active config's version and source (bundled / remote / cached). | you (Phase 1 reply) |
+| D16 | `.rfacc` import moves to **v1.1**. The key-mapping table stays in IPC_MAP.md for later. | you |
+| D17 | Approved v1 additions: next-track prefetch, audio quality setting, tap a lyric line to seek, RTL rendering for Arabic/Hebrew lyric lines (detected per line; the rest of the UI stays English LTR). The offline Home moves to **v1.1**, so **v1 has three tabs: Search · Library · Settings**, and the Home tab arrives in v1.1. | you (+ my assumption on the tab count) |
+| D18 | Pushes go to branch `mobile` only: no `main`, no tags, no force-push. Upstream workflows (`release.yml`, `nix-hash.yml`) are never modified or deleted. Unsigned builds need no secrets; if any step asks for one, stop and report. | you |
+| D19 | **Modular audio graph:** `source → [processing slots] → analyser → destination`. `PlayerService` builds the chain from an ordered list of `ProcessingSlot`s (each exposes `input`/`output` nodes, plus `bypass`). A custom native C++ node can later be added as one more slot without changing `PlayerService`. | you |
+| D20 | **Credential guard:** a test scans `packages/core` and `apps/mobile` sources for the upstream third-party keys. It compares SHA-256 hashes of every key-shaped token against a list of hashes, so the keys themselves never enter the repo. | proposed (enforces D14) |
 
 ## 2. Architecture
 
@@ -89,10 +95,24 @@ export interface StreamResolver {
 `{ version, updated, player: [{ name, clientName, clientVersion, host, userAgent, deviceMake?, deviceModel?, osName?, osVersion?, androidSdkVersion?, enabled }], googlevideoUserAgents: { IOS, ANDROID_MUSIC, … }, itags: { standard: [140, 141, 139], low: [139, 140] } }`.
 Seeded from `fetchDirectYoutubeStreamServer` (server.js L1115) and `GV_UA`.
 
-**Proposed addition:** a *remote override* for `clients.json`. At startup the app may fetch the file
-from a URL you control (for example the raw file on your fork's `mobile` branch), validate the schema,
-and use it only if its `version` is newer than the bundled one. It is data, not code, so iOS allows
-it. This fixes YouTube breakage without rebuilding and re-sideloading. Off unless you approve it.
+**Remote override (approved, D15):** a newer `clients.json` on the fork's `mobile` branch fixes
+YouTube breakage without rebuilding and re-sideloading. It is data, not code, so iOS allows it.
+
+### Audio graph (D19)
+
+```
+<Audio source={{ uri, headers }}>      (or a local file)
+        │  MediaElementAudioSourceNode
+        ▼
+ ┌─ slot 1: EQ (10 × BiquadFilter) ─┐   each slot: { id, input: AudioNode, output: AudioNode,
+ ├─ slot 2: (v1.1) reverb/echo      ┤                bypass(on: boolean), dispose() }
+ ├─ slot n: (later) custom C++ node ┤   PlayerService connects slot[i].output → slot[i+1].input
+ └──────────────────────────────────┘
+        ▼
+   AnalyserNode  →  master GainNode  →  destination
+```
+Slots are registered in a list. Inserting, removing or bypassing a slot rewires only its neighbours,
+so `PlayerService` and the UI never change when a new processing stage is added.
 
 **Lint rule (packages/core):** `no-restricted-imports` for `buffer`, `crypto`, `zlib`, `http`,
 `https`, `fs`, `fs/promises`, `stream`, `child_process`, `net`, `dns`, `os`, `path`, `url`, plus every
@@ -105,11 +125,11 @@ dependencies (`fflate`, `@noble/*`) are allowed.
 |---|---|---|---|
 | M0 | 1 | Audit: these five docs | **STOP** (now) |
 | M1 | 2 | **Spike**: S1 to S5 below | pass/fail report, numbers, fallback proposal → **STOP** |
-| M2 | 3 | `packages/core` v1 modules + tests, Platform adapters, MMKV store + `.rfacc` import, app shell (tabs, mini player, full player, queue sheet), dark theme + dynamic accent | screenshots/recording → **STOP** |
+| M2 | 3 | `packages/core` v1 modules + tests, Platform adapters, MMKV store, remote `clients.json` override, app shell (3 tabs, mini player, full player, queue sheet), dark theme + dynamic accent | screenshots/recording → **STOP** |
 | M3 | 4 | v1 features in order: search → play → queue → liked/history/playlists → local files → offline → lyrics → EQ + presets. Every screen gets loading/empty/error, haptics, VoiceOver. | status vs FEATURES.md → **STOP** |
 | M4 | 5 | Rebrand check: icon/splash per D2, About + licenses, `git grep -in riff -- apps/mobile packages/core` returns only allowed hits (RIFF magic strings, credits) | report → **STOP** |
 | M5 | 6 | Verify: typecheck, lint, tests, real-device smoke test, release .ipa + Android APK, `apps/mobile/RUN.md` | final report |
-| M6 | — | v1.1: SoundCloud, speed/pitch, reverb, echo, sleep timer, visualizers, album/artist pages, online Home, autoplay radio, light theme, lyrics offset | |
+| M6 | — | v1.1: SoundCloud, speed/pitch, reverb, echo, sleep timer, visualizers, Home tab (local + online sections), album/artist pages, autoplay radio, `.rfacc` import, light theme, lyrics offset | |
 | M7 | — | v2: imports, Last.fm, other lyrics sources, translation, RemoteResolver, normalizer, crossfade, … | |
 
 ## 4. Spike (Phase 2): what I'll prove first, in this order
@@ -173,10 +193,9 @@ first sound under 2.5 s on Wi-Fi with a cold resolve, under 1 s with a prefetche
 | R11 | Newest stack (Expo 58 / RN 0.88, New Architecture only): native module compatibility (MMKV 4, Skia 2, FlashList 2, audio-api 1.0) | Low–Medium / Medium | First S0 build installs all v1 native modules, so any problem shows up in week 1 |
 | R12 | Legal: YouTube/SoundCloud terms | Accepted | Personal install only, never the App Store (brief) |
 
-## 7. Questions for you
+## 7. Phase 1 questions: answered (2026-11-18)
 
-1. **Remote `clients.json` override** (section 2): add it in v1? I recommend yes.
-2. **`.rfacc` import in v1**: I kept it because Phase 3 step 2 asks for it. OK?
-3. **v1 items I proposed** (prefetch, quality setting, local-only Home, tap-to-seek, RTL lyric lines): OK?
-4. **Pushing:** Phase 2 needs branch `mobile` pushed to your fork so GitHub Actions can build the .ipa.
-   May I push `mobile` (never `main`, never tags) from Phase 2 on?
+1. Remote `clients.json`: yes, in v1, with the rules in D15.
+2. `.rfacc` import: moved to v1.1 (D16).
+3. v1 additions: prefetch, quality, tap-to-seek and RTL lyric lines approved; offline Home moved to v1.1 (D17).
+4. Push: yes, branch `mobile` only (D18).
