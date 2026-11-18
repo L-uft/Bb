@@ -3,6 +3,7 @@ export { firstFulfilled, AllFailedError, errorMessage } from './util/async';
 export { getQueryParam, hostOf } from './util/url';
 
 export {
+  REMOTE_CLIENTS_CONFIG_URL,
   BUNDLED_CLIENTS_CONFIG,
   ClientsConfigSchema,
   parseClientsConfig,

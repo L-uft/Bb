@@ -1,6 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import bundledJson from '../../src/youtube/clients.json';
-import { BUNDLED_CLIENTS_CONFIG, googlevideoUserAgentFor, parseClientsConfig } from '../../src/youtube/clientsConfig';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import {
+  BUNDLED_CLIENTS_CONFIG,
+  REMOTE_CLIENTS_CONFIG_URL,
+  googlevideoUserAgentFor,
+  parseClientsConfig,
+} from '../../src/youtube/clientsConfig';
+
+describe('remote clients.json location (D15)', () => {
+  it('points at the L-uft/Bb fork, mobile branch, and the real file path', () => {
+    const prefix = 'https://raw.githubusercontent.com/L-uft/Bb/mobile/';
+    expect(REMOTE_CLIENTS_CONFIG_URL.startsWith(prefix)).toBe(true);
+    const repoPath = REMOTE_CLIENTS_CONFIG_URL.slice(prefix.length);
+    expect(existsSync(resolve(__dirname, '../../../..', repoPath))).toBe(true);
+  });
+});
 
 const clone = () => JSON.parse(JSON.stringify(bundledJson));
 

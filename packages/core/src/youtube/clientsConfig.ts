@@ -6,6 +6,13 @@
 import { z } from 'zod';
 import bundledJson from './clients.json';
 
+/**
+ * Remote override location (PLAN.md D15): the copy on the fork's `mobile` branch.
+ * The fork is L-uft/Bb. Change it here and nowhere else.
+ */
+export const REMOTE_CLIENTS_CONFIG_URL =
+  'https://raw.githubusercontent.com/L-uft/Bb/mobile/packages/core/src/youtube/clients.json';
+
 const httpsUrl = z.string().url().refine((u) => u.startsWith('https://'), 'must be https');
 const host = z.string().regex(/^[a-z0-9.-]+\.(youtube|google|googleapis)\.com$/, 'unexpected host');
 const userAgent = z.string().min(8).max(300);
