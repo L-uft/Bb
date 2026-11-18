@@ -4,9 +4,9 @@ Live record of S0 to S5 (criteria in PLAN.md §4). Updated as each item complete
 
 | Item | Status | Summary |
 |---|---|---|
-| S0 build pipeline | CI built (release ✓); install pending on your iPhone | `mobile-ios.yml` run 1: release built in 15.2 min (Xcode build 12.6 min), icon SHA-256 check passed |
+| S0 build pipeline | **PASS** | Run 1 installed with Sideloadly (free Apple ID) on iPhone 13 Pro Max, iOS 26.6.1: self-check all ✓ (MMKV, files, AudioContext 48000 Hz + FFmpeg, memory 103.8 MB, network) |
 | S1 resolver | **PASS** | 3/3 videos → itag 140 audio/mp4 via the `IOS` profile; URLs need no special User-Agent |
-| S2 playback / background / lock screen | pending | needs S0 installed on your iPhone |
+| S2 playback / background / lock screen | code ready, device test pending | S2 screen in the app; your results decide pass/fail |
 | S3 DSP nodes | pending | |
 | S4 local formats + Hermes APIs | pending | |
 | S5 log screen | pending | |
@@ -32,6 +32,29 @@ Live record of S0 to S5 (criteria in PLAN.md §4). Updated as each item complete
   `new MediaElementAudioSourceNode(ctx, { mediaElement: handle })` disconnects it from the destination
   and exposes it as a normal node for the slot chain (D19). The tag spawns a new file source when the
   source changes, so PlayerService must rebuild the source node on every load.
+
+## S2: playback through the graph (code ready)
+
+What the S2 screen does (`apps/mobile/src/app/s2.tsx`, `src/player/*`):
+- `PlayerService` (singleton) owns the AudioContext, the graph and the queue. `PlayerHost` renders the one
+  `<Audio context source={{ uri, headers }}>` tag at the app root. On load, `MediaElementAudioSourceNode`
+  feeds the slot chain `source → eq10 (10 × peaking, Q 1.1, desktop bands) → analyser → master gain → out` (D19).
+- **Graph proof**, two ways: (1) a live analyser RMS meter, (2) a "mute master gain" switch that must
+  silence the music. If audio bypassed the graph, the meter would read 0 and mute would do nothing.
+- Session: category `playback`, interruptions observed (`began` → paused; `ended` + `shouldResume` →
+  resume), route changes logged, `OldDeviceUnavailable` (AirPods removed) → pause.
+- Lock screen: `PlaybackNotificationManager` with title, artist, artwork, duration, elapsed time; controls
+  play / pause / next / previous / seek. Remote events are logged as `remote: …`.
+- Measurements: tap → resolve → `onLoad` → `onPlaying` per track (prefetched or not). Memory is sampled
+  every 10 s (`getUsedMemory`), with track start / now / peak.
+- D6: one re-resolve on a playback error, then an error state. The next track is prefetched once the
+  current one starts.
+- Event log on screen, with a **Share log** button (text). S5 adds the persistent log file.
+
+**FFmpeg is required for streaming:** the `Audio` tag streams remote files over HTTP Range requests
+**only when FFmpeg is in the build**; without it, the whole file downloads before playback
+(react-native-audio-api 1.0.1 `Audio.d.ts`). So `enableFFmpeg: true` is needed for D8, not just for
+OGG/Opus.
 
 ## S1: OnDeviceResolver (`packages/core`)
 
