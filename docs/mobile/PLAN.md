@@ -46,7 +46,8 @@ Bb/ (fork of rootscripts/riff; the desktop app stays untouched)
 │   ├── src/color/                 dominant color / accent extraction from RGBA pixels
 │   └── test/                      Vitest. Offline fixture tests by default; live network tests only with LIVE=1.
 ├── apps/mobile/                   Expo SDK 58, React Native 0.88, Expo Router, TypeScript strict, expo-dev-client
-│   ├── app/                       routes (see SCREENS.md)
+│   ├── src/app/                   routes (Expo Router, see SCREENS.md)
+│   ├── plugins/withExactIosIcon.js  keeps the icon byte-identical (Expo flattens light/tinted onto white)
 │   ├── src/player/PlayerService.ts  owns AudioContext, <Audio>, node graph, queue, lock screen
 │   ├── src/platform/              React Native Platform implementation (fetch, @noble/*, MMKV, file logger)
 │   └── assets/brand/bb-icon-1024.png

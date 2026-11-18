@@ -4,10 +4,10 @@ Stack: Expo Router (file-based routes), bottom tabs, native stack for detail scr
 modal for the full-screen player, and bottom sheets for the queue, EQ and track actions.
 English UI, written with `start`/`end` (never `left`/`right`) so RTL can be added later.
 
-## Route tree (`apps/mobile/app/`)
+## Route tree (`apps/mobile/src/app/`, the Expo SDK 58 convention)
 
 ```
-app/
+src/app/
 ├── _layout.tsx                  Root: providers (theme, PlayerService, query cache), error boundary → Logger
 ├── (tabs)/
 │   ├── _layout.tsx              Bottom tabs + <MiniPlayer/> docked above the tab bar
