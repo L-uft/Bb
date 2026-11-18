@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "Bb",
+    "slug": "bb",
+    "scheme": "bb",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "icon": "./assets/brand/bb-icon-1024.png",
+    "ios": {
+      "bundleIdentifier": "com.luft.bb",
+      "supportsTablet": false,
+      "icon": {
+        "light": "./assets/brand/bb-icon-1024.png",
+        "dark": "./assets/brand/bb-icon-1024.png",
+        "tinted": "./assets/brand/bb-icon-1024.png"
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.luft.bb",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/brand/bb-icon-1024.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/brand/bb-icon-1024.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/brand/bb-icon-1024.png",
+          "backgroundColor": "#FFFFFF",
+          "imageWidth": 200
+        }
+      ],
+      "expo-sharing",
+      "expo-image",
+      [
+        "react-native-audio-api",
+        {
+          "iosBackgroundMode": true,
+          "enableFFmpeg": true
+        }
+      ],
+      [
+        "./plugins/withExactIosIcon",
+        {
+          "icon": "./assets/brand/bb-icon-1024.png"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
