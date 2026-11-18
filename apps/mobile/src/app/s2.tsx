@@ -1,5 +1,6 @@
 // Spike S2 screen: play YouTube audio through Bb's graph and measure it.
 import * as Haptics from 'expo-haptics';
+import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useStore } from 'zustand';
@@ -27,15 +28,34 @@ function LevelMeter() {
 }
 
 function MeasurementRow({ m }: { m: Measurement }) {
-  if (!m.playingAt) return null;
-  const resolve = (m.resolvedAt ?? m.tapAt) - m.tapAt;
-  const load = (m.loadedAt ?? 0) - (m.resolvedAt ?? 0);
-  const start = m.playingAt - (m.loadedAt ?? m.playingAt);
+  const since = (t?: number) => (t ? `${t - m.tapAt}` : '—');
+  const tags = [m.strategy, m.prefetched && 'prefetched URL', m.fallback && 'fallback'].filter(Boolean).join(', ');
   return (
-    <Text style={styles.mono}>
-      {formatTime(m.tapAt).slice(0, 8)} {m.trackId} total {m.playingAt - m.tapAt} ms = resolve {resolve} + load {load} + start {start}
-      {m.prefetched ? ' [prefetched]' : ''}
+    <Text style={[styles.mono, m.noAudio && styles.err]}>
+      {formatTime(m.tapAt).slice(0, 8)} {m.trackId} [{tags}]{'\n'}
+      {'  '}
+      {m.noAudio ? 'NO AUDIO · ' : `FIRST SOUND ${since(m.firstRmsAt)} ms · `}resolve {since(m.resolvedAt)} · download{' '}
+      {since(m.preparedAt)} · loaded {since(m.loadedAt)} · play() {since(m.playCalledAt)} · 1st tick {since(m.firstTickAt)}
     </Text>
+  );
+}
+
+function Segmented<T extends string>({ value, options, onChange }: { value: T; options: { v: T; label: string }[]; onChange: (v: T) => void }) {
+  return (
+    <View style={styles.seg}>
+      {options.map((o) => (
+        <Pressable
+          key={o.v}
+          style={[styles.segItem, value === o.v && styles.segActive]}
+          onPress={() => onChange(o.v)}
+          accessibilityRole="button"
+          accessibilityState={{ selected: value === o.v }}
+          accessibilityLabel={o.label}
+        >
+          <Text style={[styles.segText, value === o.v && styles.segTextActive]}>{o.label}</Text>
+        </Pressable>
+      ))}
+    </View>
   );
 }
 
@@ -47,6 +67,35 @@ export default function S2() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.section}>Diagnostics first</Text>
+      <Link href="/diag" asChild>
+        <Pressable style={styles.primary} accessibilityRole="button" accessibilityLabel="Open diagnostics">
+          <Text style={styles.primaryText}>Open diagnostics (1 button, ~1.5 min)</Text>
+        </Pressable>
+      </Link>
+
+      <Text style={styles.section}>Loading strategy</Text>
+      <Segmented
+        value={s.strategy}
+        options={[
+          { v: 'stream', label: 'Stream (native)' },
+          { v: 'file', label: 'Download → play file' },
+        ]}
+        onChange={(v) => PlayerService.setStrategy(v)}
+      />
+      <View style={styles.row}>
+        <Text style={styles.label}>Auto-fallback: no audio after 8 s → retry as file</Text>
+        <Switch value={s.autoFallback} onValueChange={(v) => PlayerService.setAutoFallback(v)} accessibilityLabel="Auto-fallback" />
+      </View>
+      <Pressable
+        style={[styles.smallBtn, !!s.rapidTest && styles.disabled]}
+        onPress={() => void PlayerService.rapidChangeTest()}
+        accessibilityRole="button"
+        accessibilityLabel="Run 10 rapid track changes memory test"
+      >
+        <Text style={styles.btnText}>{s.rapidTest ? `Memory test: ${s.rapidTest}` : '10 rapid track changes (memory test, ~30 s)'}</Text>
+      </Pressable>
+
       <Text style={styles.section}>Graph</Text>
       <Text style={styles.mono}>{s.graph || '—'}</Text>
       <LevelMeter />
@@ -109,7 +158,7 @@ export default function S2() {
         <Ctl label="⏭" a11y="Next track" onPress={() => PlayerService.next()} />
       </View>
 
-      <Text style={styles.section}>Tap → first sound</Text>
+      <Text style={styles.section}>Tap → first sound (ms after tap; first sound = analyser RMS above 0.003)</Text>
       {s.history.length === 0 ? <Text style={styles.dim}>Play a track to measure.</Text> : null}
       {s.history.map((m) => (
         <MeasurementRow key={`${m.trackId}-${m.tapAt}`} m={m} />
@@ -186,4 +235,12 @@ const styles = StyleSheet.create({
   ctlBig: { minWidth: 72, minHeight: 72, borderRadius: 36, backgroundColor: '#D6B4E6' },
   ctlText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
   ctlTextBig: { color: '#0E0E12', fontSize: 24 },
+  primary: { backgroundColor: '#D6B4E6', borderRadius: 12, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  primaryText: { color: '#0E0E12', fontSize: 15, fontWeight: '700' },
+  disabled: { opacity: 0.6 },
+  seg: { flexDirection: 'row', backgroundColor: '#1A1A21', borderRadius: 10, padding: 3, gap: 3 },
+  segItem: { flex: 1, minHeight: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  segActive: { backgroundColor: '#D6B4E6' },
+  segText: { color: '#E4E4E7', fontSize: 13, fontWeight: '600' },
+  segTextActive: { color: '#0E0E12' },
 });

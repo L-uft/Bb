@@ -21,6 +21,7 @@ export default function RootLayout() {
           <Stack.Screen name="index" options={{ title: 'Bb · spike' }} />
           <Stack.Screen name="selfcheck" options={{ title: 'S0 · Self-check' }} />
           <Stack.Screen name="s2" options={{ title: 'S2 · Playback' }} />
+          <Stack.Screen name="diag" options={{ title: 'S2 · Diagnostics' }} />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>
