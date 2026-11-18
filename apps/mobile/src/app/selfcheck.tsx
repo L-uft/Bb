@@ -1,5 +1,6 @@
 // S0 self-check: proves every native module in the build loads on the device.
 // Each check makes one small real call and reports ✓ / ✗ with a detail line.
+import { BUNDLED_CLIENTS_CONFIG } from '@bb/core';
 import * as Application from 'expo-application';
 import { File, Paths } from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
@@ -20,6 +21,33 @@ const CHECKS: Check[] = [
     run: () =>
       `${Application.nativeApplicationVersion ?? '?'} (build ${Application.nativeBuildVersion ?? '?'}) · ` +
       `${__DEV__ ? 'dev-client' : 'release'} · commit ${process.env.EXPO_PUBLIC_BB_COMMIT ?? 'local'}`,
+  },
+  {
+    name: '@bb/core in Hermes',
+    run: () => {
+      const c = BUNDLED_CLIENTS_CONFIG;
+      return `clients.json v${c.version} parsed by zod; enabled: ${c.player.filter((p) => p.enabled).map((p) => p.name).join(', ')}`;
+    },
+  },
+  {
+    name: 'Hermes web APIs',
+    run: () => {
+      const g = globalThis as Record<string, unknown>;
+      const has = (ok: boolean, name: string) => `${name} ${ok ? '✓' : '✗'}`;
+      let urlParams = false;
+      try {
+        urlParams = new URL('https://x.test/p?a=1').searchParams.get('a') === '1';
+      } catch {
+        urlParams = false;
+      }
+      return [
+        has(urlParams, 'URL.searchParams'),
+        has(typeof g.TextDecoder === 'function', 'TextDecoder'),
+        has(typeof (AbortSignal as unknown as Record<string, unknown>).timeout === 'function', 'AbortSignal.timeout'),
+        has(typeof (Promise as unknown as Record<string, unknown>).any === 'function', 'Promise.any'),
+        has(typeof g.atob === 'function' && typeof g.btoa === 'function', 'atob/btoa'),
+      ].join(' · ');
+    },
   },
   {
     name: 'MMKV',
