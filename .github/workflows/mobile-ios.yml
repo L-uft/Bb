@@ -1,0 +1,129 @@
+# Builds Bb (apps/mobile) for iPhone as UNSIGNED .ipa files, installed with Sideloadly.
+# Needs no secrets. Two variants:
+#   dev     - Debug + expo-dev-client: loads JS from Metro on the PC over Wi-Fi.
+#   release - Release with the JS bundle embedded: runs anywhere.
+name: mobile-ios
+
+on:
+  push:
+    branches: [mobile]
+    paths:
+      - 'apps/mobile/**'
+      - 'packages/core/**'
+      - '.github/workflows/mobile-ios.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    name: iOS ${{ matrix.variant }} (unsigned)
+    runs-on: macos-26
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: dev
+            configuration: Debug
+          - variant: release
+            configuration: Release
+    defaults:
+      run:
+        working-directory: apps/mobile
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+      EXPO_PUBLIC_BB_COMMIT: ${{ github.sha }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+
+      - name: Select Xcode (Expo SDK 58 needs 26.4+)
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26.*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then echo "::error::No Xcode 26.x on this runner"; ls /Applications; exit 1; fi
+          sudo xcode-select -s "$XCODE"
+          V=$(xcodebuild -version | head -1 | awk '{print $2}')
+          echo "Using $XCODE ($V)"
+          if [ "$(printf '%s\n' 26.4 "$V" | sort -V | head -1)" != "26.4" ]; then
+            echo "::error::Xcode $V is older than 26.4"; exit 1
+          fi
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Generate iOS project (expo prebuild)
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: Verify app icon is byte-identical to the source
+        run: |
+          SRC=$(shasum -a 256 assets/brand/bb-icon-1024.png | cut -d' ' -f1)
+          SET=$(ls -d ios/*/Images.xcassets/AppIcon.appiconset | head -1)
+          COUNT=0
+          for f in "$SET"/App-Icon*-1024x1024@1x.png "$SET"/App-Icon-1024x1024@1x.png; do
+            [ -f "$f" ] || continue
+            H=$(shasum -a 256 "$f" | cut -d' ' -f1)
+            if [ "$H" != "$SRC" ]; then echo "::error::$f differs from the source icon"; exit 1; fi
+            COUNT=$((COUNT+1))
+          done
+          echo "Icon files identical to source: $COUNT"
+          cat "$SET/Contents.json"
+
+      - name: Install CocoaPods
+        run: cd ios && pod install
+
+      - name: Build ${{ matrix.configuration }} for device (no signing)
+        run: |
+          set -o pipefail
+          WS=$(ls -d ios/*.xcworkspace | head -1)
+          SCHEME=$(basename "$WS" .xcworkspace)
+          echo "workspace=$WS scheme=$SCHEME"
+          xcodebuild \
+            -workspace "$WS" -scheme "$SCHEME" \
+            -configuration ${{ matrix.configuration }} \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build > build.log 2>&1 || { grep -E "error:|\*\* BUILD FAILED" build.log | head -50; tail -80 build.log; exit 1; }
+          grep -E "warning: .*(AppIcon|icon)|\*\* BUILD SUCCEEDED" build.log || true
+
+      - name: Package unsigned .ipa
+        run: |
+          APP=$(ls -d build/Build/Products/${{ matrix.configuration }}-iphoneos/*.app | head -1)
+          rm -rf out && mkdir -p out/Payload
+          cp -R "$APP" out/Payload/
+          (cd out && zip -qry "../Bb-${{ matrix.variant }}-unsigned.ipa" Payload)
+          echo "app bundle: $(du -sh "$APP" | cut -f1) | ipa: $(du -h Bb-${{ matrix.variant }}-unsigned.ipa | cut -f1)"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :UIBackgroundModes' "$APP/Info.plist"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bb-${{ matrix.variant }}-unsigned-run${{ github.run_number }}
+          path: apps/mobile/Bb-${{ matrix.variant }}-unsigned.ipa
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ matrix.variant }}-run${{ github.run_number }}
+          path: apps/mobile/build.log
+          retention-days: 7
+          if-no-files-found: ignore
