@@ -1,0 +1,36 @@
+# Checks @bb/core (packages/core): typecheck, lint (bans Node built-ins), unit tests,
+# credential guard. Live network tests are not run in CI.
+name: mobile-core
+
+on:
+  push:
+    branches: [mobile]
+    paths:
+      - 'packages/core/**'
+      - 'apps/mobile/src/**'
+      - 'apps/mobile/plugins/**'
+      - 'apps/mobile/app.json'
+      - '.github/workflows/mobile-core.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: packages/core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/core/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
